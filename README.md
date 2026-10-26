@@ -1,97 +1,187 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# Ứng Dụng Quản Lý Sinh Viên - React Native (Thực Hành 2)
 
-# Getting Started
+Ứng dụng di động quản lý học tập dành cho sinh viên được xây dựng bằng **React Native**, kết nối với **Mock API (json-server)**, hỗ trợ kiến trúc **Offline-First**, tự động đồng bộ và giải quyết xung đột dữ liệu.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+---
 
-## Step 1: Start Metro
+## 🚀 Hướng Dẫn Cài Đặt & Khởi Chạy
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+### 1. Chuẩn bị Server Mock API (json-server)
+Ứng dụng sử dụng server giả lập `json-server` phiên bản 0.17.4 với độ trễ 800 ms và tệp dữ liệu `db.json`:
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+```bash
+# Cài đặt json-server (nếu chưa cài)
+npm install -g json-server@0.17.4
 
-```sh
-# Using npm
+# Chạy server với delay 800ms trên cổng 3000
+npm run server
+# hoặc:
+json-server --watch db.json --host 0.0.0.0 --port 3000 --delay 800
+```
+
+> **Lưu ý cấu hình IP kết nối:**  
+> Trong file [src/config.ts](file:///d:/workspace/app/react_native_th_2/src/config.ts):
+> - Máy ảo Android Emulator: `http://10.0.2.2:3000`
+> - Thiết bị thật hoặc máy ảo khác: Thay bằng địa chỉ IP LAN của máy tính (ví dụ `http://192.168.1.x:3000`).
+
+### 2. Khởi chạy Ứng dụng React Native
+```bash
+# Cài đặt thư viện dependencies
+npm install
+
+# Khởi động Metro Bundler
 npm start
 
-# OR using Yarn
-yarn start
-```
-
-## Step 2: Build and run your app
-
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
-
-### Android
-
-```sh
-# Using npm
+# Mở terminal mới và chạy trên Android
 npm run android
-
-# OR using Yarn
-yarn android
 ```
 
-### iOS
+---
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+## 📱 Cấu Trúc 5 Tab & Điều Hướng
 
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
+Ứng dụng gồm 5 tab Native Stack riêng biệt theo đúng quy ước:
+1. **Tổng quan (`HomeScreen`)**: Hiển thị họ tên, mã sinh viên; môn đang học; bài tập đến hạn trong 7 ngày tới; số lượng thay đổi chưa đồng bộ.
+2. **Môn học (`CourseListScreen`, `CourseDetailScreen`)**: Danh sách môn học kèm tìm kiếm theo tên và lọc theo học kỳ. Kể cả khi offline, tìm kiếm và lọc vẫn hoạt động bình thường trên cache.
+3. **Thời khóa biểu (`ScheduleScreen`, `SessionDetailScreen`)**: Xem lịch học theo thứ trong tuần với component chọn ngày `DaySelector`.
+4. **Bài tập (`AssignmentListScreen`, `AssignmentDetailScreen`, `AssignmentFormScreen`)**: Danh sách bài tập, bộ lọc trạng thái (Tất cả / Chưa xong / Đã xong / Quá hạn), nút thêm mới, đổi trạng thái bài tập, badge số bài chưa hoàn thành trên tab bar.
+5. **Cá nhân (`ProfileScreen`, `EditProfileScreen`, `GradeListScreen`, `GradeDetailScreen`)**: Mã sinh viên, họ tên, lớp, chuyên ngành, email, số điện thoại, tóm tắt GPA và bảng điểm chi tiết.
 
-```sh
-bundle install
+### Quy tắc điều hướng:
+- Mọi tên route khai báo duy nhất tại [src/navigation/routes.ts](file:///d:/workspace/app/react_native_th_2/src/navigation/routes.ts).
+- Các màn hình chi tiết chỉ nhận `{ id }` qua `route.params`.
+- Tiêu đề header của màn hình chi tiết được gán động bằng `navigation.setOptions({ title: ... })`.
+- Mọi màn hình chi tiết đều có nút quay lại; sau khi lưu form thành công thì tự quay về màn hình trước.
+
+---
+
+## 🛠️ Chi Tiết Các Tính Năng Đã Thực Hiện
+
+### Phần A. Xử lý Trạng thái & Thao tác Dữ liệu
+- **A3 & A4. Xử lý đủ 4 trạng thái & Kéo để làm mới**: Mọi màn hình danh sách xử lý đầy đủ 4 trạng thái:
+  1. *Đang tải*: ActivityIndicator / Skeleton.
+  2. *Có dữ liệu*: FlatList danh sách trực quan.
+  3. *Danh sách rỗng*: Component `EmptyState` (`ListEmptyComponent`).
+  4. *Lỗi*: Thông báo lỗi thân thiện kèm nút "Thử lại".
+  - Hỗ trợ kéo để làm mới (`refreshing` và `onRefresh`).
+- **A5. Thêm bài tập mới (`AssignmentFormScreen`)**:
+  - Gửi dữ liệu bằng phương thức `POST` tới endpoint `/assignments`.
+  - **Kiểm tra dữ liệu đầu vào (Validation)**:
+    - Tiêu đề bài tập không được để trống hoặc chỉ có khoảng trắng.
+    - Hạn nộp phải là ngày hợp lệ và **không được ở trong quá khứ** (`dueDate >= 00:00:00 hôm nay`).
+  - Hỗ trợ các mốc chọn nhanh hạn nộp (+1 ngày, +3 ngày, +7 ngày, +14 ngày).
+  - Sau khi lưu thành công, tự động quay về màn hình trước.
+- **A6. Cập nhật lạc quan (Optimistic Update)**:
+  - Khi người dùng bấm vào checkbox/nút đổi trạng thái bài tập: Giao diện chuyển đổi trạng thái `todo` ⟷ `done` ngay lập tức mà không phải chờ API phản hồi.
+  - Sau đó gọi API `PATCH /assignments/:id`.
+  - **Cơ chế Hoàn tác (Rollback)**: Nếu API gặp lỗi (máy chủ lỗi 500, timeout...), ứng dụng tự động hoàn tác giao diện về trạng thái ban đầu và hiển thị thông báo lỗi: *"Không thể cập nhật trạng thái bài tập lên máy chủ. Giao diện đã được hoàn tác."*
+
+---
+
+### Phần B. Chế Độ Offline & Đồng Bộ Ngoại Tuyến (4 Điểm)
+
+#### B1. Theo dõi trạng thái mạng
+- Sử dụng thư viện `@react-native-community/netinfo`.
+- Xây dựng custom hook [useNetworkStatus()](file:///d:/workspace/app/react_native_th_2/src/hooks/useNetworkStatus.ts).
+- Khi mất mạng: Banner **“Bạn đang offline”** xuất hiện ở **mọi màn hình** (thông qua `OfflineBanner` đặt tại `AppNavigator`), kèm cảnh báo dữ liệu đang đọc từ bộ nhớ đệm.
+
+#### B2. Bộ nhớ đệm "Cache trước, mạng sau"
+- Mỗi lần gọi `GET` thành công, lưu kết quả vào `AsyncStorage` kèm thời điểm lưu theo định dạng: `{ data, savedAt }`.
+  - Ví dụ: Khóa `cache:courses` lưu `{ data: Course[], savedAt: string }`.
+- **Chiến lược:** Khi mở bất kỳ màn hình nào, ứng dụng lập tức nạp và hiển thị dữ liệu từ cache cục bộ (tránh màn hình chờ), sau đó gọi API nền để lấy dữ liệu mới nhất nếu có mạng.
+- **Khi offline:** Hiển thị dòng thông báo định dạng chuẩn: **“Cập nhật lần cuối: 14:32, 26/10/2026”** (qua component `LastUpdatedText`).
+
+#### B3. Hàng đợi thao tác ngoại tuyến (Outbox Queue)
+- Khi mất mạng, 3 thao tác quan trọng không bao giờ bị chặn:
+  1. Đổi trạng thái bài tập (`updateAssignmentStatus`).
+  2. Thêm bài tập mới (`createAssignment`).
+  3. Chỉnh sửa thông tin cá nhân sinh viên (`updateStudent`).
+- Các thao tác này được tuần tự lưu vào hàng đợi `AsyncStorage` (`outbox:queue`) theo đúng cấu trúc:
+  ```typescript
+  interface OutboxItem {
+    id: string;
+    method: 'POST' | 'PATCH' | 'PUT' | 'DELETE';
+    url: string;
+    body?: any;
+    createdAt: string; // ISO 8601
+  }
+  ```
+- **Nhãn "Chưa đồng bộ":** Các mục đang nằm trong hàng đợi hoặc tạo ngoại tuyến được hiển thị huy hiệu (badge) **“Chưa đồng bộ”** trên thẻ bài tập và thông tin cá nhân.
+
+#### B4. Tự động đồng bộ (Auto Sync)
+- Khi thiết bị có kết nối mạng trở lại (được hook `useNetworkStatus` phát hiện):
+  - Ứng dụng tự động kích hoạt tiến trình gửi lần lượt các thao tác trong hàng đợi theo đúng thứ tự **FIFO (First In First Out)**.
+  - Thao tác thành công được xóa khỏi hàng đợi (`outbox.remove(id)`).
+  - Thao tác bị lỗi mạng/server được giữ lại trong hàng đợi để tiếp tục thử lại sau.
+  - Sau khi hoàn tất tiến trình đồng bộ, hiển thị thông báo: **“Đã đồng bộ X thay đổi lên máy chủ thành công.”**
+
+---
+
+### B5. Cơ Chế Xử Lý Xung Đột Dữ Liệu (Conflict Resolution)
+
+#### Vấn đề:
+Trong môi trường ngoại tuyến (Offline-First), người dùng có thể thực hiện sửa đổi dữ liệu trên máy điện thoại khi không có mạng (ví dụ sửa thông tin sinh viên hoặc trạng thái bài tập). Trong thời gian đó, trên server dữ liệu cũng có thể đã được người khác hoặc hệ thống cập nhật mới hơn thời điểm thao tác ngoại tuyến được tạo ra.
+
+#### Cách xử lý của ứng dụng:
+1. **Kiểm tra thời điểm chỉnh sửa (`updatedAt`) trước khi ghi đè:**
+   - Trong quá trình đồng bộ tự động một mục `PATCH`/`PUT` từ hàng đợi Outbox, trước khi gửi yêu cầu cập nhật lên server, ứng dụng thực hiện gửi `GET` đến endpoint tương ứng để lấy thực thể hiện tại trên server (`serverEntity`).
+2. **So sánh tem thời gian:**
+   - So sánh thời điểm cập nhật trên server `serverEntity.updatedAt` với thời điểm tạo thao tác offline `item.createdAt`:
+     ```typescript
+     const serverTime = new Date(serverEntity.updatedAt).getTime();
+     const offlineTime = new Date(item.createdAt).getTime();
+
+     if (serverTime > offlineTime) {
+       // XUNG ĐỘT PHÁT SINH
+     }
+     ```
+3. **Quy tắc giải quyết: Ưu tiên dữ liệu Server:**
+   - **Nếu `serverTime > offlineTime`**: Dữ liệu trên server mới hơn thao tác ngoại tuyến của thiết bị. Ứng dụng sẽ **ưu tiên giữ nguyên dữ liệu từ máy chủ**, không gửi thao tác ghi đè của offline lên server.
+   - Thao tác offline này được loại bỏ khỏi hàng đợi Outbox (`outbox.remove(item.id)`).
+   - Dữ liệu trong bộ nhớ đệm và giao diện ứng dụng được làm mới lại theo dữ liệu mới nhất từ server.
+4. **Thông báo cho người dùng:**
+   - Ứng dụng hiển thị thông báo hộp thoại trực quan cho người dùng:
+     > *"Xung đột dữ liệu: Dữ liệu '[Tên mục]' trên máy chủ đã được cập nhật mới hơn thao tác offline của bạn. Ứng dụng đã ưu tiên giữ nguyên dữ liệu từ máy chủ."*
+5. **Trường hợp không có xung đột (`serverTime <= offlineTime`):**
+   - Ứng dụng thực hiện gửi `PATCH`/`PUT` cập nhật dữ liệu bình thường, cập nhật `updatedAt` mới và xóa mục khỏi hàng đợi Outbox.
+
+---
+
+## 📂 Cấu Trúc Thư Mục Dự Án
+
 ```
-
-Then, and every time you update your native dependencies, run:
-
-```sh
-bundle exec pod install
+src/
+├── api/                  # Tầng giao tiếp mạng (Mock API client & services)
+│   ├── client.ts         # Axios/Fetch client bọc hàm request()
+│   ├── studentService.ts # API thông tin sinh viên (/students)
+│   ├── courseService.ts  # API danh sách môn học (/courses)
+│   ├── sessionService.ts # API thời khóa biểu (/sessions)
+│   ├── assignmentService.ts # API bài tập (/assignments)
+│   ├── gradeService.ts   # API bảng điểm (/grades)
+│   └── types.ts          # Định nghĩa TypeScript interface dữ liệu
+├── components/           # Component giao diện tái sử dụng
+│   ├── common/           # OfflineBanner, LastUpdatedText, FilterChips, FormInput...
+│   ├── assignment/       # AssignmentItem, StatusToggle
+│   ├── course/           # CourseCard
+│   ├── schedule/         # DaySelector, SessionCard
+│   ├── grade/            # GpaSummary, GradeRow
+│   └── profile/          # InfoRow
+├── hooks/                # Custom hooks (useNetworkStatus...)
+├── navigation/           # Quản lý điều hướng React Navigation
+│   ├── routes.ts         # Khai báo hằng số định danh Routes duy nhất
+│   ├── AppNavigator.tsx  # Bottom Tab Navigator & Global Offline Banner
+│   └── *Stack.tsx        # 5 Native Stack Navigators
+├── screens/              # 5 module màn hình ứng dụng
+│   ├── home/
+│   ├── courses/
+│   ├── schedule/
+│   ├── assignments/
+│   └── profile/
+├── storage/              # Tầng lưu trữ bộ nhớ cục bộ
+│   ├── keys.ts           # Khóa AsyncStorage: cache:* và outbox:queue
+│   ├── cache.ts          # Quản lý Cache với { data, savedAt }
+│   └── outbox.ts         # Quản lý hàng đợi ngoại tuyến Outbox
+├── store/                # Zustand State Management (useAppStore)
+├── theme/                # Màu sắc, khoảng cách, typography
+└── utils/                # Date formatting, GPA calculation, Validators
 ```
-
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
-
-```sh
-# Using npm
-npm run ios
-
-# OR using Yarn
-yarn ios
-```
-
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
-
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
-
-## Step 3: Modify your app
-
-Now that you have successfully run the app, let's make changes!
-
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
-
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
-
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
-
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
